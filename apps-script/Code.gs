@@ -14,7 +14,8 @@ const PENDING_NAME  = 'AccPho – Pending';
 const APPROVED_NAME = 'AccPho – Approved';
 const MAX_BYTES     = 4 * 1024 * 1024;  // per photo, after the page shrinks it
 const MAX_PER_HOUR  = 60;               // site-wide limit on submissions, against spam floods
-const FRAMES = ['gilt','gallery','polaroid','wood','oval','chrome','accpho','thrift','film','shadowbox','neon','velvet'];
+const FRAMES = ['gilt','gallery','polaroid','wood','oval','chrome','accpho','thrift','film','shadowbox','neon','velvet',
+  'rococo','pearl','eggdart','rope','greek','shell','laurel','dentil','reeded','scroll','lattice','beaded','rosegold','palace','acanthus','salon'];
 
 /** Run this once from the editor: it creates the folders and asks for permission. */
 function setup() {
