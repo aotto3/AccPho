@@ -1,17 +1,18 @@
 /**
  * School of Accidental Photography: photo storage in Google Drive.
  *
- * Folders (created automatically by setup()):
- *   AccPho – Pending   : new guest submissions land here
- *   AccPho – Approved  : everything in here appears in the gallery
+ * Folders, inside My Drive › SBI › AccPho (created automatically by setup()):
+ *   Pending   : new guest submissions land here
+ *   Approved  : everything in here appears in the gallery
  *
  * To approve a photo, move it from Pending to Approved.
  * To reject one, delete it. You can also drop your own photos
  * straight into Approved.
  */
 
-const PENDING_NAME  = 'AccPho – Pending';
-const APPROVED_NAME = 'AccPho – Approved';
+const ACCPHO_FOLDER_ID = '17eJLmQiFyhrpqzSlE35C0wYaV1MJDl93'; // My Drive › SBI › AccPho
+const PENDING_NAME  = 'Pending';
+const APPROVED_NAME = 'Approved';
 const MAX_BYTES     = 4 * 1024 * 1024;  // per photo, after the page shrinks it
 const MAX_PER_HOUR  = 60;               // site-wide limit on submissions, against spam floods
 const FRAMES = ['gilt','gallery','polaroid','wood','oval','chrome','accpho','thrift','film','shadowbox','neon','velvet',
@@ -83,9 +84,16 @@ function doPost(e) {
   }
 }
 
+/** Finds (or creates) a subfolder of My Drive › SBI › AccPho. */
 function folder_(name) {
-  const it = DriveApp.getFoldersByName(name);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty('folder:' + name);
+  if (saved) { try { return DriveApp.getFolderById(saved); } catch (e) {} }
+  const parent = DriveApp.getFolderById(ACCPHO_FOLDER_ID);
+  const it = parent.getFoldersByName(name);
+  const f = it.hasNext() ? it.next() : parent.createFolder(name);
+  props.setProperty('folder:' + name, f.getId());
+  return f;
 }
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
