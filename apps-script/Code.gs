@@ -1,9 +1,9 @@
 /**
  * School of Accidental Photography: photo storage in Google Drive.
  *
- * Folders, inside My Drive › SBI › AccPho (created automatically by setup()):
- *   Pending   : new guest submissions land here
- *   Approved  : everything in here appears in the gallery
+ * Folders, inside My Drive › SBI › AccPho:
+ *   AccPho – Pending   : new guest submissions land here
+ *   AccPho – Approved  : everything in here appears in the gallery
  *
  * To approve a photo, move it from Pending to Approved.
  * To reject one, delete it. You can also drop your own photos
@@ -11,8 +11,12 @@
  */
 
 const ACCPHO_FOLDER_ID = '17eJLmQiFyhrpqzSlE35C0wYaV1MJDl93'; // My Drive › SBI › AccPho
-const PENDING_NAME  = 'Pending';
-const APPROVED_NAME = 'Approved';
+const PENDING_NAME  = 'AccPho – Pending';
+const APPROVED_NAME = 'AccPho – Approved';
+const KNOWN_IDS = {                                               // the folders as they exist today
+  'AccPho – Pending':  '1UJ1hpZvGdcyd_VAlLDvlATwUWklEGvqw',
+  'AccPho – Approved': '1yJhuGKQm8O82Dr4IuFxDuCC00nCvZUO8'
+};
 const MAX_BYTES     = 4 * 1024 * 1024;  // per photo, after the page shrinks it
 const MAX_PER_HOUR  = 60;               // site-wide limit on submissions, against spam floods
 const FRAMES = ['gilt','gallery','polaroid','wood','oval','chrome','accpho','thrift','film','shadowbox','neon','velvet',
@@ -87,7 +91,7 @@ function doPost(e) {
 /** Finds (or creates) a subfolder of My Drive › SBI › AccPho. */
 function folder_(name) {
   const props = PropertiesService.getScriptProperties();
-  const saved = props.getProperty('folder:' + name);
+  const saved = props.getProperty('folder:' + name) || KNOWN_IDS[name];
   if (saved) { try { return DriveApp.getFolderById(saved); } catch (e) {} }
   const parent = DriveApp.getFolderById(ACCPHO_FOLDER_ID);
   const it = parent.getFoldersByName(name);
@@ -97,4 +101,75 @@ function folder_(name) {
 }
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+
+/* =========================================================
+ * SEED PHOTOS FROM WIKIMEDIA COMMONS
+ * Run seedFromCommons() once from the editor. It looks through
+ * Wikimedia Commons categories of accidental-looking photos,
+ * keeps ONLY public-domain and CC0 images (free to use, no credit
+ * required), and saves them into "AccPho – Pending" with names
+ * starting "Seed". Look through them and move the keepers to
+ * Approved; delete the rest. Running it again skips photos it
+ * already saved.
+ * ========================================================= */
+const SEED_CATEGORIES = [
+  'Accidental finger in frame',
+  'Accidental photographs',
+  'Unintentional photographs',
+  'Motion blur',
+  'Camera shake',
+  'Out of focus photographs',
+  'Blurred photographs',
+  'Overexposed photographs',
+  'Underexposed photographs',
+  'Lens flare',
+  'Shadows of photographers',
+  'Photographers in reflections',
+  'Dutch angle photographs'
+];
+const SEED_PER_CATEGORY = 8;
+const SEED_MAX_TOTAL    = 50;
+
+function seedFromCommons() {
+  const pending = folder_(PENDING_NAME), approved = folder_(APPROVED_NAME);
+  const have = {};
+  [pending, approved].forEach(f => { const it = f.getFiles(); while (it.hasNext()) have[it.next().getName()] = true; });
+  const headers = { 'User-Agent': 'AccPhoSeeder/1.0 (https://accpho.allenotto.com)' };
+  let saved = 0;
+
+  for (const cat of SEED_CATEGORIES) {
+    if (saved >= SEED_MAX_TOTAL) break;
+    const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json'
+      + '&generator=categorymembers&gcmtype=file&gcmlimit=100&gcmtitle=' + encodeURIComponent('Category:' + cat)
+      + '&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=1600'
+      + '&iiextmetadatafilter=License|LicenseShortName|Artist';
+    let data;
+    try { data = JSON.parse(UrlFetchApp.fetch(url, { headers, muteHttpExceptions: true }).getContentText()); }
+    catch (e) { Logger.log(cat + ': could not read (' + e + ')'); continue; }
+    const pages = data.query && data.query.pages ? Object.values(data.query.pages) : [];
+    let n = 0, free = 0;
+    for (const p of pages) {
+      if (n >= SEED_PER_CATEGORY || saved >= SEED_MAX_TOTAL) break;
+      const ii = p.imageinfo && p.imageinfo[0]; if (!ii) continue;
+      if (!/^image\/(jpeg|png)$/.test(ii.mime)) continue;
+      const md = ii.extmetadata || {};
+      const lic = ((md.License && md.License.value) || '') + ' ' + ((md.LicenseShortName && md.LicenseShortName.value) || '');
+      if (!/(^|\s)(pd|cc0|cc-zero)|public domain/i.test(lic)) continue;   // public domain / CC0 only
+      free++;
+      const name = 'Seed – ' + p.title.replace(/^File:/, '').replace(/\.(png|jpe?g)$/i, '') + '.jpg';
+      if (have[name]) continue;
+      try {
+        const blob = UrlFetchApp.fetch(ii.thumburl || ii.url, { headers }).getBlob().setName(name);
+        const f = pending.createFile(blob);
+        f.setDescription('frame:' + FRAMES[Math.floor(Math.random() * FRAMES.length)]
+          + ' | source: ' + ii.descriptionurl + ' | license: ' + lic.trim());
+        have[name] = true; n++; saved++;
+        Utilities.sleep(400);
+      } catch (e) { Logger.log('  skipped ' + p.title + ': ' + e); }
+    }
+    Logger.log(cat + ': ' + pages.length + ' files, ' + free + ' public domain/CC0, saved ' + n);
+  }
+  Logger.log('Done. Saved ' + saved + ' photos to "' + PENDING_NAME + '".');
 }
