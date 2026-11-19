@@ -143,8 +143,8 @@ function seedFromCommons() {
     if (saved >= SEED_MAX_TOTAL) break;
     const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json'
       + '&generator=categorymembers&gcmtype=file&gcmlimit=100&gcmtitle=' + encodeURIComponent('Category:' + cat)
-      + '&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=1600'
-      + '&iiextmetadatafilter=License|LicenseShortName|Artist';
+      + '&prop=imageinfo&iiprop=' + encodeURIComponent('url|mime|extmetadata') + '&iiurlwidth=1600'
+      + '&iiextmetadatafilter=' + encodeURIComponent('License|LicenseShortName|Artist');
     let data;
     try { data = JSON.parse(UrlFetchApp.fetch(url, { headers, muteHttpExceptions: true }).getContentText()); }
     catch (e) { Logger.log(cat + ': could not read (' + e + ')'); continue; }
@@ -161,7 +161,7 @@ function seedFromCommons() {
       const name = 'Seed – ' + p.title.replace(/^File:/, '').replace(/\.(png|jpe?g)$/i, '') + '.jpg';
       if (have[name]) continue;
       try {
-        const blob = UrlFetchApp.fetch(ii.thumburl || ii.url, { headers }).getBlob().setName(name);
+        const blob = UrlFetchApp.fetch(encodeURI(decodeURI(ii.thumburl || ii.url)), { headers }).getBlob().setName(name);
         const f = pending.createFile(blob);
         f.setDescription('frame:' + FRAMES[Math.floor(Math.random() * FRAMES.length)]
           + ' | source: ' + ii.descriptionurl + ' | license: ' + lic.trim());
